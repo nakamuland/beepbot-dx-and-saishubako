@@ -28,6 +28,9 @@ printf '\n[3/4] Embed both OTA images into the launcher source\n'
   --saishubako "$DIST/saishubako-k132-ota1.bin" \
   --output "$ROOT/launcher/src/embedded_apps.S"
 
+# PlatformIO does not track the .incbin payload as an object dependency.
+(cd "$ROOT/launcher" && "$PIO_CMD" run -e launcher -t clean)
+
 printf '\n[4/4] Build persistent launcher (K132 no-PSRAM, OTA0 app)\n'
 (cd "$ROOT/launcher" && "$PIO_CMD" run -e launcher)
 cp "$ROOT/launcher/.pio/build/launcher/firmware.bin" "$DIST/k132-app-launcher-ota0.bin"

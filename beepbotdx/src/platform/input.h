@@ -28,6 +28,11 @@ enum InputEvent {
     INPUT_LAUNCHER,
 };
 
+// Keep Backspace as INPUT_BACK while text fields are active.
+constexpr InputEvent mapBackspaceEvent(bool fnHeld, bool textInput) {
+    return fnHeld && !textInput ? INPUT_LAUNCHER : INPUT_BACK;
+}
+
 namespace Input {
 
 void init();

@@ -59,6 +59,8 @@ private:
     void drawHeader(Canvas& canvas, const Theme& theme);
     void drawHelp(Canvas& canvas, const Theme& theme);
     void drawTabMenu(Canvas& canvas, const Theme& theme);
+    void drawLauncherConfirmation(Canvas& canvas, const Theme& theme);
+    void requestLauncherReturn();
 
     static void onTrigger(uint8_t soundIndex);
     static void onStep(uint8_t step);
@@ -94,6 +96,7 @@ private:
     int _helpCursor = 0;
     int _helpScroll = 0;
     int _helpTotal = 0;
+    bool _launcherConfirmOpen = false;
 
     // Tab menu
     bool _tabMenuOpen = false;

@@ -2,6 +2,7 @@
 #include "platform/storage.h"
 #include "platform/audio.h"
 #include "platform/led.h"
+#include "core/launcher_return.h"
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
@@ -133,6 +134,9 @@ void App::tick() {
         }
     }
 
+    Input::setTextMode(
+        (_currentScreen == SCREEN_SOUND && _soundView.inRename())
+        || (_currentScreen == SCREEN_PROJECT && _projectView.inRename()));
     InputEvent event = Input::poll();
 
     if (event != INPUT_NONE) {
@@ -152,42 +156,84 @@ void App::tick() {
     render();
 }
 
+void App::requestLauncherReturn() {
+#ifdef NATIVE_TEST
+    _character.say("launcher unavailable");
+#else
+    if (Audio::isRecording()) {
+        _character.say("stop recording first");
+        return;
+    }
+
+    const esp_partition_t* running = esp_ota_get_running_partition();
+    if (!running || running->subtype != ESP_PARTITION_SUBTYPE_APP_OTA_1) {
+        _character.say("launcher slot missing");
+        return;
+    }
+
+    const esp_partition_t* launcher = esp_partition_find_first(
+        ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, nullptr);
+    if (!launcher || esp_ota_set_boot_partition(launcher) != ESP_OK) {
+        _character.setState(CHAR_ERROR);
+        _character.say("launcher not found");
+        return;
+    }
+
+    Audio::stopAll();
+    LED::off();
+    delay(100);
+    esp_restart();
+#endif
+}
+
 void App::handleGlobalInput(InputEvent& event) {
     bool textInput = (_currentScreen == SCREEN_SOUND && _soundView.inRename())
                   || (_currentScreen == SCREEN_PROJECT && _projectView.inRename());
-    Input::setTextMode(textInput);
 
-    // Fn+Q returns from an app in OTA slot 1 to the persistent launcher in slot 0.
+    // While the prompt is open, Enter discards RAM-only edits and Esc keeps the app open.
+    if (_launcherConfirmOpen) {
+        const LauncherReturnAction action = decideLauncherReturn(
+            true, _project.dirty, false, event == INPUT_ENTER, event == INPUT_ESC);
+        event = INPUT_NONE;
+        if (action == LauncherReturnAction::DiscardAndReturn) {
+            if (Audio::isRecording()) {
+                _character.say("stop recording first");
+            } else {
+                _launcherConfirmOpen = false;
+                requestLauncherReturn();
+            }
+        } else if (action == LauncherReturnAction::CancelConfirmation) {
+            _launcherConfirmOpen = false;
+            _character.say("staying here");
+        }
+        return;
+    }
+
     if (event == INPUT_LAUNCHER) {
         event = INPUT_NONE;
         if (textInput) {
             _character.say("finish rename first");
-        } else {
-#ifdef NATIVE_TEST
-            _character.say("launcher unavailable");
-#else
-            const esp_partition_t* running = esp_ota_get_running_partition();
-            if (!running || running->subtype != ESP_PARTITION_SUBTYPE_APP_OTA_1) {
-                _character.say("launcher slot missing");
-            } else if (Audio::isRecording()) {
-                _character.say("stop recording first");
-            } else if (_project.dirty) {
-                _character.setState(CHAR_SUSPICIOUS);
-                _character.say("save first!");
-            } else {
-                const esp_partition_t* launcher = esp_partition_find_first(
-                    ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_APP_OTA_0, nullptr);
-                if (!launcher || esp_ota_set_boot_partition(launcher) != ESP_OK) {
-                    _character.setState(CHAR_ERROR);
-                    _character.say("launcher not found");
-                } else {
-                    Audio::stopAll();
-                    LED::off();
-                    delay(100);
-                    esp_restart();
-                }
-            }
+            return;
+        }
+        if (Audio::isRecording()) {
+            _character.say("stop recording first");
+            return;
+        }
+
+#ifndef NATIVE_TEST
+        const esp_partition_t* running = esp_ota_get_running_partition();
+        if (!running || running->subtype != ESP_PARTITION_SUBTYPE_APP_OTA_1) {
+            _character.say("launcher slot missing");
+            return;
+        }
 #endif
+
+        const LauncherReturnAction action = decideLauncherReturn(
+            false, _project.dirty, true, false, false);
+        if (action == LauncherReturnAction::ShowConfirmation) {
+            _launcherConfirmOpen = true;
+        } else if (action == LauncherReturnAction::ReturnToLauncher) {
+            requestLauncherReturn();
         }
         return;
     }
@@ -509,6 +555,7 @@ void App::render() {
 
     if (_helpOpen) drawHelp(canvas, theme);
     if (_tabMenuVisible) drawTabMenu(canvas, theme);
+    if (_launcherConfirmOpen) drawLauncherConfirmation(canvas, theme);
 
     Display::endFrame();
 }
@@ -639,6 +686,7 @@ void App::drawHelp(Canvas& canvas, const Theme& theme) {
     static const HelpLine globals[] = {
         {"S", "Save proj"}, {"O", "Open proj"}, {"G", "Settings"}, {"M", "LED mode"}, {"F", "Table flip"},
         {"+/-", "Volume"}, {"B +/-", "BPM"}, {"N +/-", "Brightness"}, {"TAB", "Navigate"}, {"TAB ^/v ", "Menu"},
+        {"Fn+BS", "Return / confirm"},
     };
 
     const HelpLine* lines = nullptr;
@@ -770,6 +818,29 @@ void App::drawTabMenu(Canvas& canvas, const Theme& theme) {
         snprintf(slotStr, sizeof(slotStr), "PROJ %02d", _currentProjectSlot + 1);
         canvas.drawString(slotStr, SCREEN_WIDTH - 8, 7);
     }
+}
+
+void App::drawLauncherConfirmation(Canvas& canvas, const Theme& theme) {
+    canvas.darken();
+
+    const int boxWidth = SCREEN_WIDTH - 20;
+    const int boxHeight = 78;
+    const int boxX = (SCREEN_WIDTH - boxWidth) / 2;
+    const int boxY = (SCREEN_HEIGHT - boxHeight) / 2;
+    const int centerX = SCREEN_WIDTH / 2;
+
+    canvas.fillRect(boxX, boxY, boxWidth, boxHeight, TFT_BLACK);
+    canvas.drawRect(boxX, boxY, boxWidth, boxHeight, theme.accent);
+    canvas.setTextSize(1);
+    canvas.setTextDatum(top_center);
+    canvas.setTextColor(theme.accent);
+    canvas.drawString("UNSAVED CHANGES", centerX, boxY + 7);
+    canvas.setTextColor(TFT_WHITE);
+    canvas.drawString("Discard changes and return?", centerX, boxY + 22);
+    canvas.setTextColor(TFT_YELLOW);
+    canvas.drawString("ENTER: Discard and return", centerX, boxY + 40);
+    canvas.setTextColor(TFT_WHITE);
+    canvas.drawString("ESC: Cancel and stay", centerX, boxY + 57);
 }
 
 View* App::getView(Screen s) {

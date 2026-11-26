@@ -116,16 +116,20 @@ InputEvent Input::poll() {
 
     // Check for first press (edge-triggered)
     if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
+        // Fn+Q is reserved; launcher return uses Fn+Backspace.
         if (status.fn) {
             for (auto key : status.word) {
                 if (key == 'q') {
                     lastArrowKey = 0;
-                    return textMode ? INPUT_NONE : INPUT_LAUNCHER;
+                    return INPUT_NONE;
                 }
             }
         }
         if (status.enter || status.ctrl) { lastArrowKey = 0; return INPUT_ENTER; }
-        if (status.del)   { lastArrowKey = 0; return INPUT_BACK; }
+        if (status.del) {
+            lastArrowKey = 0;
+            return mapBackspaceEvent(status.fn, textMode);
+        }
         if (status.tab && !tabEventSent) { lastArrowKey = 0; tabEventSent = true; return INPUT_TAB; }
 
         for (auto key : status.word) {

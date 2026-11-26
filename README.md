@@ -15,7 +15,8 @@
 
 - **app0 (`0x10000`)**：ランチャー
 - **app1 (`0x340000`)**：選んだアプリ。ランチャーがアプリイメージを書き込み、起動先を切り替えます。
-- **Fn+Q**：beepBot DXまたはSaishubakoからランチャーへ戻ります。
+- **Fn+Backspace**：beepBot DXからランチャーへ戻ります。未保存変更がある場合は確認画面でEnterを押すと保存せず破棄して戻り、Escでキャンセルします。beepBot DXの名前変更中はBackspaceとして動作します。
+- **Fn+Q**：Saishubakoからランチャーへ戻ります。
 
 ランチャーから起動するとapp1の内容は選んだアプリで置き換わります。SaishubakoはmicroSDの `SAISHU` フォルダーを、beepBot DXは `/beepbotdx` を使用します。
 

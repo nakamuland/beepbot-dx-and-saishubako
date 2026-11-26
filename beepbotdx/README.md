@@ -45,12 +45,15 @@ Record sounds with the built-in mic, import WAV files from SD, build patterns, a
 | B+/- | BPM |
 | N+/- | Brightness |
 | H | Help overlay |
+| Fn+Backspace | Return to launcher |
 | F | Table flip |
 | SPACE | Play/audition |
 | CTRL/OK | Select/confirm |
 | 1-8 | Trigger sounds |
 
 Navigation uses a tab menu (hold TAB + arrows or tap to cycle).
+
+If the project has unsaved changes, Fn+Backspace opens a confirmation: press **Enter** to discard them without saving and return to the launcher, or **Esc** to cancel and stay in beepBot DX. While renaming, Fn+Backspace acts as Backspace.
  
 ![Menu](assets/menu.png)
 
