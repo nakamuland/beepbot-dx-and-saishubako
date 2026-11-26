@@ -1,4 +1,5 @@
 #include "romaji.h"
+#include "mx11.h"
 // Saishubako 0.1.0 - original M5Stack Cardputer. MIT license.
 #include <M5Cardputer.h>
 #include <SD.h>
@@ -396,7 +397,7 @@ void draw() {
         }
         d.setFont(&fonts::Font0);
         line(105, notice.substring(0, 38), ACCENT_COLOR);
-        line(124, "Enter:play ;/.:page Fn+Q:launcher");
+        line(124, "Fn+P:print Enter:play Fn+Q:launcher");
     }
     dirty = false; lastDraw = millis();
 }
@@ -477,6 +478,14 @@ void keys() {
         }
     } else if (mode == Mode::VIEW) {
         if (tabEdge) { mode = Mode::LIST; dirty = true; }
+        else if (state.fn && edge('p', now)) {
+            if (detail.isEmpty()) message("No text to print");
+            else {
+                message("Connecting to MX11...");
+                draw();
+                message(mx11::printNote(detail, entries[selected]));
+            }
+        }
         else if (enterEdge) startPlayback(entries[selected]);
         else if (edge(';', now) && page > 0) { --page; dirty = true; }
         else if (edge('.', now) && (page + 1) * 6 * TEXT_COLUMNS < (int)utf8Length(detail)) { ++page; dirty = true; }
