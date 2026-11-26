@@ -44,6 +44,7 @@ void drawScreen() {
     d.print("CARDPUTER K132 / APP LAUNCHER");
     d.drawFastHLine(8, 23, 224, 0x31C6);
 
+    d.setTextSize(2);
     for (size_t i = 0; i < APP_COUNT; ++i) {
         int y = 44 + static_cast<int>(i) * 30;
         d.setTextColor(i == selected ? TFT_WHITE : INK, BG);
@@ -51,6 +52,7 @@ void drawScreen() {
         d.printf("%c %u  %s", i == selected ? '>' : ' ', static_cast<unsigned>(i + 1), APPS[i].label);
     }
 
+    d.setTextSize(1);
     d.setTextColor(ACCENT, BG);
     d.setCursor(8, 108);
     d.print(statusText.substring(0, 36));
