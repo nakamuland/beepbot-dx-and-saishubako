@@ -1,4 +1,4 @@
-# Beepbox & Saishubako
+# beepBot DX & Saishubako
 
 標準の M5Stack Cardputer K132 向けプロジェクトです。
 
