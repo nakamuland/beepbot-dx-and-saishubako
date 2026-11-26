@@ -1,0 +1,29 @@
+# PlatformIO build/cache outputs
+**/.pio/
+**/.pioenvs/
+**/.piolibdeps/
+
+# Local firmware build outputs and checksums
+/dist/
+**/firmware.bin
+**/*.elf
+**/*.map
+launcher/src/embedded_apps.S
+saishubako/saishubako-cardputer-full.bin
+
+# Device-specific flash dumps/backups and local install logs
+**/cardputer-backup*.bin
+**/cardputer-before-*.bin
+**/install.log
+
+# Python and local editor/OS files
+__pycache__/
+*.py[cod]
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# BeepBot DX desktop build outputs
+beepbotdx/build/
+beepbotdx/build_zero/

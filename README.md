@@ -1,18 +1,56 @@
-# beepBot DX & Saishubako
+# beepBot DX & Saishubako for M5Stack Cardputer K132
 
-標準の M5Stack Cardputer K132 向けプロジェクトです。
+このリポジトリには、標準 M5Stack Cardputer K132（ESP32-S3、8 MBフラッシュ、PSRAMなし）向けのランチャーと、beepBot DX／Saishubakoのソース一式を含みます。ランチャーから2つのアプリを切り替える試作構成です。
+
+## 含まれるもの
+
+- [`launcher/`](launcher/) — app0で動作し、選んだアプリをapp1へ書き込んで起動するランチャー
+- [`beepbotdx/`](beepbotdx/) — beepBot DXのソース、テスト、画像。K132/no-PSRAMビルド設定とランチャー復帰対応を含み、元のMITライセンスを保持
+- [`saishubako/`](saishubako/) — K132/no-PSRAM・OTA切り替え対応を加えたSaishubakoソース。元の画面回転設定とMITライセンスを保持
+- [`tools/`](tools/) とルートのビルドスクリプト — 2つのアプリをビルドし、ランチャーに埋め込み、オフライン検査を行う補助ツール
 
 ## 起動構成
 
-- app0 のランチャーから、app1 に配置した beepBot DX と Saishubako を起動できます。
-- どちらのアプリも Fn+Q でランチャーに戻ります。
+この試作は、標準の `default_8MB.csv` パーティション表にある2つのOTAアプリ領域を前提とします。
 
-## 画面表示
+- **app0 (`0x10000`)**：ランチャー
+- **app1 (`0x340000`)**：選んだアプリ。ランチャーがアプリイメージを書き込み、起動先を切り替えます。
+- **Fn+Q**：beepBot DXまたはSaishubakoからランチャーへ戻ります。
 
-- ランチャーと Saishubako は、左に90度回転した横向き表示です。
-- beepBot DX のファームウェアイメージは変更していません。
+ランチャーから起動するとapp1の内容は選んだアプリで置き換わります。SaishubakoはmicroSDの `SAISHU` フォルダーを、beepBot DXは `/beepbotdx` を使用します。
 
-## 動作確認
+## ビルド
 
-- beepBot DX と Saishubako の起動、および Fn+Q でのランチャー復帰を確認しました。
-- Saishubako が横向きで起動し、ランチャーへ戻れることを確認しました。
+Python 3とPlatformIO CLIが必要です。依存するPlatformIOプラットフォーム／ライブラリの取得にはネットワーク接続が必要です。
+
+LinuxまたはmacOS:
+
+```sh
+./build_all.sh
+```
+
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build_all.ps1
+```
+
+ビルド成果物は `dist/` に作られ、Git管理対象から除外されます。ビルドスクリプトはファームウェアを生成してオフライン検査を行うだけで、CardputerやmicroSDへの書き込みはしません。ランチャー用の `launcher/src/embedded_apps.S` もビルド時に生成されるファイルで、公開ソースには含めません。
+
+## 実機への導入について
+
+**このリポジトリにはフラッシュ書き込み用のインストーラーや、端末から吸い出したバックアップを含めません。** 実機へ導入する場合は、実機のパーティション表が上記の配置と一致することを読み取り専用で確認し、そのCardputer固有のバックアップを取ってください。app0の既存内容を置き換える操作になります。
+
+## 実機確認
+
+標準 Cardputer K132で、次の動作を確認しています。
+
+- 再ビルドしたランチャーが横向き（landscape）で表示される。
+- Saishubakoだけを回転させたアプリイメージを含むランチャーからSaishubakoが横向きで起動し、Fn+Qでランチャーへ戻る。
+- beepBot DXは先行して実機確認済み。ランチャー内のbeepBot DXアプリイメージは、単体のK132向けbeepBot DXイメージとバイト単位で一致することを確認しています。
+
+上記は表示・起動・復帰と埋め込みイメージの確認範囲です。Saishubakoの録音・再生や未保存データ保護など、ここに記していない機能まで確認済みとは主張しません。Cardputer ADVやCardputer Zero向けではありません。
+
+## ライセンスと帰属
+
+新規ランチャー／統合作業には、[ルートのMITライセンス](LICENSE)（Copyright (c) 2026 nakamuland）を適用します。beepBot DX（Brad McNally）とSaishubako（Saishubako contributors）の元のMITライセンス・著作権表示は各ディレクトリにそのまま保持しています。K132/no-PSRAM対応やランチャー復帰の変更によって、上流の帰属表示は置き換わりません。詳細は [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) を参照してください。依存ライブラリは各プロジェクトのライセンスに従います。
