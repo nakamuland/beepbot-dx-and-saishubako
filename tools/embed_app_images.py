@@ -2,11 +2,14 @@
 """Generate a tiny assembler source that embeds both app-only OTA images."""
 from pathlib import Path
 import argparse
+import hashlib
 
 
 def symbol_block(symbol: str, binary: Path) -> list[str]:
     path = binary.resolve().as_posix().replace('"', '\\"')
     return [
+        # Change the assembly source whenever the embedded binary changes.
+        f"# {symbol} SHA256 {hashlib.sha256(binary.read_bytes()).hexdigest()}",
         ".balign 16",
         f".global {symbol}_start",
         f"{symbol}_start:",

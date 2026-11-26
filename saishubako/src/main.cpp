@@ -501,7 +501,8 @@ void setup() {
     cfg.fallback_board = m5::board_t::board_M5Cardputer;
     M5Cardputer.begin(cfg, true);
     Serial.printf("Display init: board=%d size=%dx%d\n", (int)M5.getBoard(), M5Cardputer.Display.width(), M5Cardputer.Display.height());
-    M5Cardputer.Display.setRotation(1);
+    // M5GFX 0.3 uses rotation 0 for the Cardputer's native 240x135 landscape.
+    M5Cardputer.Display.setRotation(0);
     M5Cardputer.Display.setBrightness(100);
     M5Cardputer.Display.fillScreen(BG);
     M5Cardputer.Display.setTextColor(INK, BG);
