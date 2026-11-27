@@ -34,10 +34,12 @@ printf '\n[3/4] Embed both OTA images into the launcher source\n'
 printf '\n[4/4] Build persistent launcher (K132 no-PSRAM, OTA0 app)\n'
 (cd "$ROOT/launcher" && "$PIO_CMD" run -e launcher)
 cp "$ROOT/launcher/.pio/build/launcher/firmware.bin" "$DIST/k132-app-launcher-ota0.bin"
+(cd "$ROOT/unitcams3" && "$PIO_CMD" run -e unitcams3)
+cp "$ROOT/unitcams3/.pio/build/unitcams3/firmware.bin" "$DIST/unitcams3-camera.bin"
 "$PYTHON_CMD" "$ROOT/tools/verify_artifacts.py"
 (
   cd "$DIST"
-  sha256sum beepbotdx-k132-ota1.bin saishubako-k132-ota1.bin k132-app-launcher-ota0.bin > SHA256SUMS.txt
+  sha256sum beepbotdx-k132-ota1.bin saishubako-k132-ota1.bin k132-app-launcher-ota0.bin unitcams3-camera.bin > SHA256SUMS.txt
 )
 printf '\nBuild complete. Device/microSD were not accessed or changed.\n'
 printf 'Artifacts and SHA-256 list: %s\n' "$DIST"

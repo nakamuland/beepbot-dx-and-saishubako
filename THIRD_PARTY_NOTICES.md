@@ -8,6 +8,12 @@ This repository combines code with separate copyright holders. The MIT licenses 
 
 PlatformIO dependencies are fetched rather than vendored here. Their own license terms continue to apply.
 
+## UnitCamS3 integration
+
+- New UART camera firmware and Cardputer photo UI are covered by the root MIT license.
+- The camera firmware uses the Espressif Arduino ESP32 platform and its bundled [esp32-camera](https://github.com/espressif/esp32-camera) driver (Apache-2.0). Dependency license notices remain in the fetched platform.
+- OV2640 and Grove pin assignments follow [M5Stack's Unit CamS3 documentation](https://docs.m5stack.com/en/unit/Unit_CamS3).
+
 ## MX11 printing integration
 
 - **NimBLE-Arduino 2.3.6**: https://github.com/h2zero/NimBLE-Arduino/tree/2.3.6 — Apache-2.0, with component notices retained in the fetched library.

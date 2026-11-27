@@ -21,6 +21,19 @@
 
 ランチャーから起動するとapp1の内容は選んだアプリで置き換わります。SaishubakoはmicroSDの `SAISHU` フォルダーを、beepBot DXは `/beepbotdx` を使用します。
 
+## UnitCamS3と写真採集
+
+2MP版UnitCamS3をGrove接続して、採集箱に写真を追加できます。
+ランチャーは **1 beepBot DX / 2 Saishubako / 3 Camera** の3項目です。
+採集箱の入力画面で **Fn+C**、カメラ専用画面では **Enter / G0** で撮影します。
+写真はCardputerのmicroSDの `/SAISHU/記録番号.jpg` に保存します。
+保存済み記録の **Fn+C** で写真の表示・追加ができます。
+
+カメラ側にも専用ファームウェアの書き込みが必要です。
+配線、撮影操作、再書き込み手順、通信方式は [UnitCamS3の説明](unitcams3/README.md) を参照してください。
+カメラ専用画面は採集箱と同じイメージを起動モードで使い分けるため、既存の8MB構成のまま使えます。
+ルートのビルドスクリプトはカメラ側もビルドし、`dist/unitcams3-camera.bin`を生成します。このBINはCardputer用ではありません。
+
 ## MX11へのメモ印刷
 
 MX11に紙をセットし、iPhoneのFunPrintなど他のアプリとの接続を切ってから使います。

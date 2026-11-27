@@ -1,4 +1,5 @@
 #include <M5Cardputer.h>
+#include <Preferences.h>
 #include <esp_err.h>
 #include <esp_ota_ops.h>
 #include <esp_partition.h>
@@ -24,11 +25,13 @@ struct AppImage {
     const char* label;
     const uint8_t* begin;
     const uint8_t* end;
+    bool camera = false;
 };
 
 const AppImage APPS[] = {
     {"beepBot DX", beepbotdx_ota_start, beepbotdx_ota_end},
     {"Saishubako", saishubako_ota_start, saishubako_ota_end},
+    {"Camera", saishubako_ota_start, saishubako_ota_end, true},
 };
 constexpr size_t APP_COUNT = sizeof(APPS) / sizeof(APPS[0]);
 size_t selected = 0;
@@ -46,7 +49,7 @@ void drawScreen() {
 
     d.setTextSize(2);
     for (size_t i = 0; i < APP_COUNT; ++i) {
-        int y = 44 + static_cast<int>(i) * 30;
+        int y = 32 + static_cast<int>(i) * 24;
         d.setTextColor(i == selected ? TFT_WHITE : INK, BG);
         d.setCursor(18, y);
         d.printf("%c %u  %s", i == selected ? '>' : ' ', static_cast<unsigned>(i + 1), APPS[i].label);
@@ -58,7 +61,7 @@ void drawScreen() {
     d.print(statusText.substring(0, 36));
     d.setTextColor(INK, BG);
     d.setCursor(8, 124);
-    d.print("1/2: launch  ;/.:select  Enter:launch");
+    d.print("1/2/3:launch ;/.:select Enter:launch");
 }
 
 void showError(const char* message) {
@@ -126,6 +129,11 @@ bool launchApp(size_t index) {
     }
     if (handleOpen) esp_ota_abort(handle);
 
+    Preferences pref;
+    if(!pref.begin("saishu-launch",false)) {showError("Cannot set app mode");return false;}
+    bool modeSaved=pref.putBool("camera",image.camera)>0;
+    pref.end();
+    if(!modeSaved) {showError("Cannot save app mode");return false;}
     result = esp_ota_set_boot_partition(target);
     if (result != ESP_OK) {
         showError("Could not select app; launcher remains");
@@ -151,6 +159,7 @@ void handleKeys() {
     for (auto key : state.word) {
         if (key == '1') { selected = 0; drawScreen(); launchApp(0); return; }
         if (key == '2') { selected = 1; drawScreen(); launchApp(1); return; }
+        if (key == '3') { selected = 2; drawScreen(); launchApp(2); return; }
         if (key == ';' || key == ',') {
             selected = (selected + APP_COUNT - 1) % APP_COUNT;
             drawScreen();

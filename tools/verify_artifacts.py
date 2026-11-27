@@ -10,6 +10,7 @@ FILES = {
     "beepBot DX OTA app": DIST / "beepbotdx-k132-ota1.bin",
     "Saishubako OTA app": DIST / "saishubako-k132-ota1.bin",
     "K132 launcher OTA0 app": DIST / "k132-app-launcher-ota0.bin",
+    "UnitCamS3 camera firmware": DIST / "unitcams3-camera.bin",
 }
 
 
@@ -17,6 +18,7 @@ def main() -> None:
     payloads = {}
     failed = False
     for label, path in FILES.items():
+        slot_size = 0x640000 if label == "UnitCamS3 camera firmware" else SLOT_SIZE
         if not path.is_file():
             print(f"FAIL: missing {label}: {path}")
             failed = True
@@ -32,11 +34,11 @@ def main() -> None:
         elif data[2] != 2:
             print(f"FAIL: {label} flash mode is {data[2]}, expected DIO (2)")
             failed = True
-        elif len(data) > SLOT_SIZE:
-            print(f"FAIL: {label} is {len(data)} bytes; slot is {SLOT_SIZE} bytes")
+        elif len(data) > slot_size:
+            print(f"FAIL: {label} is {len(data)} bytes; slot is {slot_size} bytes")
             failed = True
         else:
-            print(f"OK:   {label}: {len(data):,} bytes / {SLOT_SIZE:,}-byte app slot")
+            print(f"OK:   {label}: {len(data):,} bytes / {slot_size:,}-byte app slot")
     launcher = payloads.get("K132 launcher OTA0 app")
     if launcher:
         for label in ("beepBot DX OTA app", "Saishubako OTA app"):

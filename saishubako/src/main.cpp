@@ -1,5 +1,8 @@
+#include <SD.h> // Must precede M5GFX so its SD JPEG wrappers are enabled.
 #include "romaji.h"
 #include "mx11.h"
+#include "unitcam.h"
+#include <Preferences.h>
 // Saishubako 0.1.0 - original M5Stack Cardputer. MIT license.
 #include <M5Cardputer.h>
 #include <SD.h>
@@ -16,7 +19,7 @@ constexpr size_t SAMPLES = 2048;
 constexpr uint32_t MAX_BYTES = RATE * 2 * 60 * 30; // 30 minutes per take
 constexpr uint16_t BG = 0x0841, INK = 0xDEDA, ACCENT_COLOR = 0x7F31;
 const char* ROOT = "/SAISHU";
-enum class Mode { EDIT, LIST, VIEW, REC, PLAY, ERROR };
+enum class Mode { EDIT, LIST, VIEW, REC, PLAY, CAMERA, PHOTO, ERROR };
 Mode mode = Mode::EDIT;
 String draft, notice, detail, pendingRomaji;
 enum class InputMode { ASCII, HIRAGANA, KATAKANA };
@@ -33,6 +36,10 @@ int16_t pcm[3][SAMPLES];
 uint8_t bufferIndex = 0;
 uint32_t level = 0;
 bool dirty = true;
+bool cameraApp = false;
+Mode cameraReturn = Mode::EDIT;
+uint32_t cameraRecord = 0, previewAt = 0;
+std::unique_ptr<uint8_t[]> previewBuffer;
 uint32_t previousKeys[4] = {};
 
 String base(uint32_t id) {
@@ -98,7 +105,7 @@ void scan() {
         uint32_t id = filenameId(name);
         if (id && !f.isDirectory()) {
             nextId = std::max(nextId, id + 1);
-            if (name.endsWith(".txt") || name.endsWith(".wav")) entries.push_back(id);
+            if (name.endsWith(".txt") || name.endsWith(".wav") || name.endsWith(".jpg")) entries.push_back(id);
         }
         f.close();
     }
@@ -180,7 +187,7 @@ void typeCharacter(char c) {
 bool saveDraft() {
     if (!finishRomaji()) return false;
     if (draft.isEmpty()) {
-        if (pendingId) { pendingId = 0; message("Audio kept. Ready for next."); }
+        if (pendingId) { pendingId = 0; message("Media kept. Ready for next."); }
         else message("Type a note, or Fn+R to record");
         return true;
     }
@@ -348,13 +355,54 @@ void wrapped(const String& s, int offset = 0) {
         line(25 + row * 11, utf8Slice(s, start, TEXT_COLUMNS));
     }
 }
+void openCamera(Mode from, uint32_t record = 0) {
+    previewBuffer.reset(new(std::nothrow) uint8_t[unitcam::PREVIEW_MAX]);
+    if(!previewBuffer) { message("Not enough memory for camera"); return; }
+    unitcam::begin();cameraReturn=from;cameraRecord=record;previewAt=0;
+    mode=Mode::CAMERA;notice="Connecting UnitCamS3...";dirty=true;
+}
+void closeCamera() {
+    unitcam::port().end();previewBuffer.reset();mode=cameraReturn;dirty=true;
+}
+void takePhoto() {
+    uint32_t id=cameraRecord?cameraRecord:(cameraApp?nextId++:(pendingId?pendingId:nextId++));
+    if(id>99999999) {message("Record number limit");return;}
+    notice="Saving photo...";
+    const char* error=unitcam::save(path(id,".jpg"));
+    if(error) {notice=error;dirty=true;return;}
+    notice="Photo #"+String(id)+" saved";
+    if(!cameraApp) {
+        if(cameraReturn==Mode::EDIT) pendingId=id;
+        closeCamera();
+    } else {scan();dirty=true;}
+}
+void previewCamera() {
+    if(mode!=Mode::CAMERA || !previewBuffer || millis()-previewAt<1000) return;
+    size_t length=0;
+    const char* error=unitcam::receive(true,previewBuffer.get(),unitcam::PREVIEW_MAX,nullptr,length);
+    auto& d=M5Cardputer.Display;
+    d.fillRect(0,21,240,96,BG);
+    if(!error) d.drawJpg(previewBuffer.get(),length,56,21,128,96,0,0,0.8f,0.8f);
+    d.setFont(&fonts::Font0);d.setTextSize(1);
+    d.setTextColor(ACCENT_COLOR,BG);d.fillRect(0,109,240,10,BG);
+    d.setCursor(4,109);d.print(String(error?error:notice.c_str()).substring(0,38));
+    previewAt=millis();
+}
 void draw() {
     auto& d = M5Cardputer.Display;
     d.fillScreen(BG);
     d.setFont(&fonts::Font0); d.setTextSize(1);
     line(6, "SAISHUBAKO / FIELD NOTES", ACCENT_COLOR);
     d.drawFastHLine(5, 20, 230, 0x31C6);
-    if (mode == Mode::ERROR) {
+    if (mode == Mode::CAMERA) {
+        line(6,cameraApp?"UNITCAM S3 / CAMERA":"SAISHUBAKO / PHOTO",ACCENT_COLOR);
+        line(109,notice.substring(0,38),ACCENT_COLOR);
+        line(124,"Enter/G0:shoot Tab:back Fn+Q:home");
+    } else if(mode==Mode::PHOTO) {
+        bool shown=d.drawJpgFile(SD,path(entries[selected],".jpg").c_str(),0,22,240,90,0,0,0.0f,0.0f,lgfx::datum_t::middle_center);
+        if(!shown)line(50,"Cannot display photo");
+        line(124,"Tab:note Fn+Q:launcher");
+    } else if (mode == Mode::ERROR) {
         wrapped(notice); line(113, "Check SD or use Fn+Q for launcher");
         line(124, "Fn+Q: launcher");
     } else if (mode == Mode::REC) {
@@ -367,9 +415,10 @@ void draw() {
         String text = draft + pendingRomaji + "_";
         int offset = max(0, int(utf8Length(text)) - int(7 * TEXT_COLUMNS));
         wrapped(text, offset);
-        if (pendingId && draft.isEmpty() && pendingRomaji.isEmpty()) line(45, "Audio #" + String(pendingId) + " saved", ACCENT_COLOR);
+        if (pendingId && draft.isEmpty() && pendingRomaji.isEmpty()) line(45, "Media #" + String(pendingId) + " saved", ACCENT_COLOR);
         d.setFont(&fonts::Font0);
         line(104, notice.substring(0, 38), ACCENT_COLOR);
+        line(114,"Fn+C:photo Fn+L:list Fn+R:record");
         const char* inputLabel = inputMode == InputMode::ASCII ? "ABC Fn+J:HIRA Enter:save" :
                                  inputMode == InputMode::HIRAGANA ? "HIRA Fn+J:KATA Enter:save" :
                                  "KATA Fn+J:ABC Enter:save";
@@ -382,7 +431,8 @@ void draw() {
             int i = first + row; uint32_t id = entries[i];
             String title = readNote(id);
             bool wav = SD.exists(path(id, ".wav"));
-            String s = String(i == selected ? ">" : " ") + String(id) + (wav ? " [A] " : "     ") + title;
+            bool photo=SD.exists(path(id,".jpg"));
+            String s = String(i == selected ? ">" : " ") + String(id) + (wav ? "A" : " ") + (photo ? "P " : "  ") + title;
             line(29 + row * 12, utf8Slice(s, 0, TEXT_COLUMNS), i == selected ? ACCENT_COLOR : INK);
         }
         d.setFont(&fonts::Font0);
@@ -397,6 +447,7 @@ void draw() {
         }
         d.setFont(&fonts::Font0);
         line(105, notice.substring(0, 38), ACCENT_COLOR);
+        line(114,"Fn+C:view/add photo");
         line(124, "Fn+P:print Enter:play Fn+Q:launcher");
     }
     dirty = false; lastDraw = millis();
@@ -428,18 +479,24 @@ void keys() {
         if (mode == Mode::REC) message("Stop recording before launcher");
         else if (mode == Mode::PLAY) message("Stop playback before launcher");
         else if (pendingId || !draft.isEmpty() || !pendingRomaji.isEmpty()) message("Press Enter to finish note first");
-        else returnToLauncher();
+        else { if(mode==Mode::CAMERA) closeCamera(); returnToLauncher(); }
         memcpy(previousKeys, now, sizeof(now));
         return;
     }
     bool recEdge = state.fn && edge('r', now);
     bool listEdge = state.fn && edge('l', now);
-    if (mode == Mode::REC) {
+    if(mode==Mode::CAMERA) {
+        if(enterEdge) takePhoto();
+        else if(tabEdge) {closeCamera();if(cameraApp)returnToLauncher();}
+    } else if(mode==Mode::PHOTO) {
+        if(tabEdge) {mode=Mode::VIEW;dirty=true;}
+    } else if (mode == Mode::REC) {
         if (recEdge || enterEdge) stopRecording();
     } else if (mode == Mode::PLAY) {
         if (enterEdge || tabEdge) stopPlayback();
     } else if (mode == Mode::EDIT) {
-        if (recEdge) startRecording();
+        if (state.fn && edge('c',now)) openCamera(Mode::EDIT);
+        else if (recEdge) startRecording();
         else if (listEdge) { scan(); if (mode != Mode::ERROR) mode = Mode::LIST; dirty = true; }
         else if (enterEdge) saveDraft();
         else if (state.fn && edge('j', now)) {
@@ -478,6 +535,11 @@ void keys() {
         }
     } else if (mode == Mode::VIEW) {
         if (tabEdge) { mode = Mode::LIST; dirty = true; }
+        else if(state.fn && edge('c',now)) {
+            uint32_t id=entries[selected];
+            if(SD.exists(path(id,".jpg"))) {mode=Mode::PHOTO;dirty=true;}
+            else openCamera(Mode::VIEW,id);
+        }
         else if (state.fn && edge('p', now)) {
             if (detail.isEmpty()) message("No text to print");
             else {
@@ -517,7 +579,12 @@ void setup() {
     if (!SD.exists(ROOT) && !SD.mkdir(ROOT)) { fail("Cannot create SAISHU folder"); return; }
     if (!recover()) { fail("Recovery failed; copy SD to PC"); return; }
     scan();
-    if (mode != Mode::ERROR) message("Ready. Type, or Fn+R to record.");
+    Preferences pref;
+    if(pref.begin("saishu-launch",false)) {
+        cameraApp=pref.getBool("camera",false);pref.remove("camera");pref.end();
+    }
+    if(cameraApp && mode!=Mode::ERROR) openCamera(Mode::EDIT);
+    if (mode != Mode::ERROR && !cameraApp) message("Ready. Type, or Fn+R to record.");
     Serial.println("Setup complete");
 }
 void loop() {
@@ -531,12 +598,14 @@ void loop() {
     // Resolve the button at runtime: the old Cardputer wrapper can bind BtnA
     // before M5Unified's global reference members have been initialized.
     if (M5.getButton(0).wasClicked()) {
-        if (mode == Mode::REC) stopRecording();
+        if (mode == Mode::CAMERA) takePhoto();
+        else if (mode == Mode::REC) stopRecording();
         else if (mode == Mode::EDIT) startRecording();
         else if (mode == Mode::PLAY) stopPlayback();
     }
     if (mode == Mode::REC) recordChunk();
     else if (mode == Mode::PLAY) playChunk();
     if (dirty || ((mode == Mode::REC || mode == Mode::PLAY) && millis() - lastDraw > 250)) draw();
+    previewCamera();
     delay(2);
 }
